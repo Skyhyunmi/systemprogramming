@@ -1,0 +1,1 @@
+cmd_/home/pi/Desktop/Project/hd/pir_ioctl.ko := ld -r  -EL -T ./scripts/module-common.lds -T ./arch/arm/kernel/module.lds  --build-id  -o /home/pi/Desktop/Project/hd/pir_ioctl.ko /home/pi/Desktop/Project/hd/pir_ioctl.o /home/pi/Desktop/Project/hd/pir_ioctl.mod.o ;  true
