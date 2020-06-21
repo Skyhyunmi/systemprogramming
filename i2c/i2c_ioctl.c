@@ -103,12 +103,15 @@ volatile unsigned int *bsc_div;
 volatile unsigned int *bsc_del;
 volatile unsigned int *bsc_clkt;
 
-volatile unsigned int i2c_byte_wait_us=-1;
+// volatile unsigned int i2c_byte_wait_us=-1;
 
 unsigned int read_from(volatile unsigned int* addr);
+unsigned int read_from_nb(volatile unsigned int* addr);
+void set_bits(volatile unsigned int* addr, int value, int mask);
+void p_write(volatile unsigned int* addr, int value);
+void p_write_nb(volatile unsigned int* addr, int value);
 
 int i2c_open(struct inode *inode, struct file *filp){
-    // volatile unsigned int * cdiv;
     printk(KERN_ALERT "I2C driver open!\n");
 
     gpio_base =      ioremap(GPIO_BASE_ADDR,0x60);
@@ -138,11 +141,8 @@ int i2c_open(struct inode *inode, struct file *filp){
 
     *gpsel0 |= (7<<9); //GPIO3
     *gpsel0 &= ~(3<<9); //ALT0 -> SCL
-
-    // bcm2835_gpio_fsel(2, 0x04); /* SDA */
-    // bcm2835_gpio_fsel(3, 0x04); /* SCL */
     
-    i2c_byte_wait_us = (*bsc_div / BCM2835_CORE_CLK_HZ) * 1000000 * 9;
+    // i2c_byte_wait_us = (*bsc_div / BCM2835_CORE_CLK_HZ) * 1000000 * 9;
     return 0;
 }
 
@@ -161,61 +161,41 @@ int i2c_release(struct inode *inode, struct file *filp){
 
 long i2c_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
     struct writeData *buf;
-    int data,divider,remaining,i,reason,len=1;
+    int data,divider,remaining,i,reason;
     
     switch(cmd){
-        // case IOCTL_I2C_READ:
-        //     copy_from_user( (void *)&readBuf, (const void *)arg, sizeof(readBuf));
-        //     data=bcm2835_i2c_read(readBuf[0],1);
-        // break;
-
         case IOCTL_I2C_WRITE:
             copy_from_user( (void *)&buf, (const void *)arg, sizeof(buf));
-            printk(KERN_ALERT "%s",buf->buf);
-            remaining = len;
+            remaining = buf->len;
             i = 0;
             reason = BCM2835_I2C_REASON_OK;
 
             /* Clear FIFO */
-            mutex_lock(&data_mutex);
-            *bsc_c = ((*bsc_c) & ~BCM2835_BSC_C_CLEAR_1) | BCM2835_BSC_C_CLEAR_1;
-            mutex_unlock(&data_mutex);
+            set_bits(bsc_c,BCM2835_BSC_C_CLEAR_1,BCM2835_BSC_C_CLEAR_1);
 
             /* Clear Status */
-            mutex_lock(&data_mutex);
-            *bsc_s = BCM2835_BSC_S_CLKT | BCM2835_BSC_S_ERR | BCM2835_BSC_S_DONE;
-            mutex_unlock(&data_mutex);
+            p_write(bsc_s,BCM2835_BSC_S_CLKT | BCM2835_BSC_S_ERR | BCM2835_BSC_S_DONE);
 
             /* Set Data Length */
-            mutex_lock(&data_mutex);
-            *bsc_dlen = len;
-            mutex_unlock(&data_mutex);
+            p_write(bsc_dlen,buf->len);
 
             /* pre populate FIFO with max buffer */
             while( remaining && ( i < BCM2835_BSC_FIFO_SIZE ) )
             {
-                // bcm2835_peri_write_nb(fifo, buf[i]);
-                *bsc_fifo = buf->buf[i];
+                p_write_nb(bsc_fifo,buf->buf[i]);
                 i++;
                 remaining--;
             }
             
-            /* Enable device and start transfer */
-            mutex_lock(&data_mutex);
-            // bcm2835_peri_write(control, BCM2835_BSC_C_I2CEN | BCM2835_BSC_C_ST);
-            *bsc_c = BCM2835_BSC_C_I2CEN | BCM2835_BSC_C_ST;
-            mutex_unlock(&data_mutex);
+            p_write(bsc_c,BCM2835_BSC_C_I2CEN | BCM2835_BSC_C_ST);
+
 
             /* Transfer is over when BCM2835_BSC_S_DONE */
             while(!(read_from(bsc_s) & BCM2835_BSC_S_DONE ))
             {
                 while ( remaining && (read_from(bsc_s) & BCM2835_BSC_S_TXD ))
                 {
-                /* Write to FIFO */
-                // bcm2835_peri_write(fifo, buf[i]);
-                mutex_lock(&data_mutex);
-                *bsc_fifo = buf->buf[i];
-                mutex_unlock(&data_mutex);
+                p_write(bsc_fifo,buf->buf[i]);
                 i++;
                 remaining--;
                 }
@@ -223,28 +203,19 @@ long i2c_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
             /* Received a NACK */
             if (read_from(bsc_s) & BCM2835_BSC_S_ERR)
-            {
                 reason = BCM2835_I2C_REASON_ERROR_NACK;
-            }
+
 
             /* Received Clock Stretch Timeout */
             else if (read_from(bsc_s) & BCM2835_BSC_S_CLKT)
-            {
                 reason = BCM2835_I2C_REASON_ERROR_CLKT;
-            }
 
             /* Not all data is sent */
             else if (remaining)
-            {
                 reason = BCM2835_I2C_REASON_ERROR_DATA;
-            }
 
-            // bcm2835_peri_set_bits(control, BCM2835_BSC_S_DONE , BCM2835_BSC_S_DONE);
-            mutex_lock(&data_mutex);
-            *bsc_c = ((*bsc_c) & ~BCM2835_BSC_S_DONE) | BCM2835_BSC_S_DONE;
-            mutex_unlock(&data_mutex);
+            set_bits(bsc_c,BCM2835_BSC_S_DONE,BCM2835_BSC_S_DONE);
             return reason;
-            // bcm2835_i2c_write(writeBuf[0],1);
         break;
 
         case IOCTL_I2C_SET_BAUD:
@@ -257,26 +228,13 @@ long i2c_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
         case IOCTL_I2C_SET_CLOCK_DIVIDER:
             copy_from_user( (void *)&data, (const void *)arg, sizeof(data));
-            mutex_lock(&data_mutex);
-            *bsc_div = data;
-            mutex_unlock(&data_mutex);
+            p_write(bsc_div,data);
         break;
 
         case IOCTL_I2C_SET_SLAVE_ADDRESS:
             copy_from_user( (void *)&data, (const void *)arg, sizeof(data));
-            printk(KERN_ALERT "slave %d",data);
-            mutex_lock(&data_mutex);
-            *bsc_a = data;
-            mutex_unlock(&data_mutex);
+            p_write(bsc_a,data);
         break;
-
-        // case IOCTL_I2C_READ_REG_RS:
-        //     bcm2835_i2c_read_register_rs();
-        // break;
-
-        // case IOCTL_I2C_WRITE_REG_RS:
-        //     bcm2835_i2c_write_register_rs();
-        // break;
     }
     return 0;
 }
@@ -316,4 +274,27 @@ unsigned int read_from(volatile unsigned int* addr)
     ret = *addr;
     mutex_unlock(&data_mutex);
     return ret;
+}
+
+unsigned int read_from_nb(volatile unsigned int* addr)
+{
+    unsigned int ret;
+    ret = *addr;
+    return ret;
+}
+
+void set_bits(volatile unsigned int* addr, int value, int mask){
+    mutex_lock(&data_mutex);
+    *addr = ((*addr) & ~mask) | (value & mask);
+    mutex_unlock(&data_mutex);
+}
+
+void p_write(volatile unsigned int* addr, int value){
+    mutex_lock(&data_mutex);
+    *addr = value;
+    mutex_unlock(&data_mutex);
+}
+
+void p_write_nb(volatile unsigned int* addr, int value){
+    *addr = value;
 }
