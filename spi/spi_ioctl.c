@@ -26,14 +26,10 @@
 #define SPI_DEV_NAME "spi_ioctl"
 
 #define IOCTL_MAGIC_NUMBER          'l'
-// #define IOCTL_SPI_SET_BIT_ORDER         _IOWR(IOCTL_MAGIC_NUMBER,0, int)
 #define IOCTL_SPI_SET_CLOCK_DIVIDER     _IOWR(IOCTL_MAGIC_NUMBER,0, int)
 #define IOCTL_SPI_SET_DATA_MODE         _IOWR(IOCTL_MAGIC_NUMBER,1, int)
-/* Reads a single byte to SPI */
 #define IOCTL_SPI_TRANSFER              _IOWR(IOCTL_MAGIC_NUMBER,2, int)
-/* Reads an number of bytes to SPI */
 #define IOCTL_SPI_TRANSFER_NB           _IOWR(IOCTL_MAGIC_NUMBER,3, int)
-/* Reads an number of bytes to SPI */
 #define IOCTL_SPI_WRITE_NB              _IOWR(IOCTL_MAGIC_NUMBER,4, int)
 #define IOCTL_SPI_TRANSFER_N            _IOWR(IOCTL_MAGIC_NUMBER,5, int)
 #define IOCTL_SPI_CHIP_SELECT           _IOWR(IOCTL_MAGIC_NUMBER,6, int)
@@ -202,13 +198,11 @@ long spi_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
     switch(cmd){
         case IOCTL_SPI_SET_CLOCK_DIVIDER:
             copy_from_user( (void *)&buf, (const void *)arg, sizeof(buf));
-            printk("set clock -> %u\n",buf->data);
             p_write(spi0_clk,buf->data);
         break;
         
         case IOCTL_SPI_SET_DATA_MODE:
             copy_from_user( (void *)&buf, (const void *)arg, sizeof(buf));
-            printk("set data -> %u\n",buf->data);
             set_bits(spi0_cs, (buf->data) << 2, BCM2835_SPI0_CS_CPOL | BCM2835_SPI0_CS_CPHA);
         break;
 
@@ -224,7 +218,6 @@ long spi_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 	            ;
             /* Read any byte that was sent back by the slave while we sere sending to it */
             buf->ret = read_from_nb(spi0_fifo);
-            printk(KERN_ALERT "ret -> %u\n",buf->ret);
             /* Set TA = 0, and also set the barrier */
             set_bits(spi0_cs, 0, BCM2835_SPI0_CS_TA);
             copy_to_user( (void *)arg, (void *)&buf, sizeof(buf));
@@ -258,7 +251,6 @@ long spi_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
             /* Wait for DONE to be set */
             while (!(read_from_nb(spi0_cs) & BCM2835_SPI0_CS_DONE))
             ;
-            printk("%04x\n",buf->rbuf[1] + ((buf->rbuf[0] & 3) << 8));
             copy_to_user((void *)arg,&buf,sizeof(buf));
             /* Set TA = 0, and also set the barrier */
             set_bits(spi0_cs, 0, BCM2835_SPI0_CS_TA);
@@ -267,12 +259,6 @@ long spi_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
         case IOCTL_SPI_WRITE_NB:
             copy_from_user( (void *)&buf, (void *)arg, sizeof(buf));
-
-            /* This is Polled transfer as per section 10.6.1
-            // BUG ALERT: what happens if we get interupted in this section, and someone else
-            // accesses a different peripheral?
-            // Answer: an ISR is required to issue the required memory barriers.
-            */
 
             /* Clear TX and RX fifos */
             set_bits(spi0_cs, BCM2835_SPI0_CS_CLEAR, BCM2835_SPI0_CS_CLEAR);
@@ -315,13 +301,11 @@ long spi_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
 
         case IOCTL_SPI_CHIP_SELECT:
             copy_from_user( (void *)&buf, (const void *)arg, sizeof(buf));
-            printk("chip select -> %d\n",buf->data);
             set_bits(spi0_cs,buf->data,BCM2835_SPI0_CS_CS);
         break;
 
         case IOCTL_SPI_CHIP_SELECT_POLARITY:
             copy_from_user( (void *)&buf, (const void *)arg, sizeof(buf));
-            printk("chip select polar -> %d\n",buf->data);
             shift = 21 + buf->data;
             set_bits(spi0_cs, (buf->active) << shift, 1 << shift);
         break;

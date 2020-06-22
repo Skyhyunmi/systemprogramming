@@ -11,6 +11,7 @@
 #include <sys/sysmacros.h>
 #include "socket.h"
 #include "lcd.h"
+#include "spi.h"
 
 #define PIR_MAJOR_NUMBER 505
 #define PIR_MINOR_NUMBER 100
@@ -19,9 +20,6 @@
 #define IOCTL_MAGIC_NUMBER 'j'
 #define IOCTL_CMD_GET_STATUS    _IOWR(IOCTL_MAGIC_NUMBER,0, int)
 #define IOCTL_CMD_GET_STATUS2    _IOWR(IOCTL_MAGIC_NUMBER,1, int)
-
-// #define IOCTL_I2C_READ_REG_RS           _IOWR(IOCTL_MAGIC_NUMBER2,5, int)
-// #define IOCTL_I2C_WRITE_REG_RS          _IOWR(IOCTL_MAGIC_NUMBER2,6, int)
 
 // SERVER 0 -> CLIENT
 // SERVER 1 -> SERVER
@@ -37,8 +35,14 @@ int main(int argc, char *argv[]){
     long pir1, pir2;
     char message[20];
     int rc = lcdInit(0x27);
+    int spi = spi_init();
+
     signal(SIGINT, (void *)sig_handler);
 	if (rc){
+		printf("Initialization failed; aborting...\n");
+		return 0;
+	}
+    if (spi){
 		printf("Initialization failed; aborting...\n");
 		return 0;
 	}
@@ -83,7 +87,11 @@ int main(int argc, char *argv[]){
         lcdWriteString(message);
 
         sprintf(message,"Time : %d",cnt);
-        lcdSetCursor(7,4);  
+        lcdSetCursor(1,4);  
+        lcdWriteString(message);
+
+        sprintf(message,"%.2fV",(float)analog_read(0)/1024);
+        lcdSetCursor(12,4);  
         lcdWriteString(message);
         
         // fflush(stdout);
