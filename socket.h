@@ -7,7 +7,7 @@ static struct sockaddr_in addr,addr2;
 pthread_t snd_th,rcv_th;
 
 static int sock, sock2;
-int rec, clnt_cnt=0, clnt_socks[5];
+int rec1, rec2, clnt_cnt=0, clnt_socks[5];
 pthread_mutex_t mutx;
 
 void error_handling(char *message);
@@ -65,7 +65,11 @@ static void * th_read (void *arg){
     while(1){
         memset(message,0,sizeof(message));
         str_len=read(sock,message,sizeof(message)-1);
-        if(str_len) rec = atoi(message);
+        if(str_len) {
+            // printf("%s\n",message);
+            if (message[0] =='1') rec1 = atoi(message);
+            else rec2 = atoi(message);
+        }
     }
 }
 

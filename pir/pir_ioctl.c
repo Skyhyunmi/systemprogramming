@@ -52,16 +52,16 @@ int pir_release(struct inode *inode, struct file *filp){
 }
 
 long pir_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
-    long read;
+    long read1, read2;
     switch(cmd){
         case IOCTL_CMD_GET_STATUS:
-            read = (*gplev0)>>20 & 1;
-            return read;
+            read1 = (*gplev0)>>20 & 1;
+            return read1;
             break;
 
         case IOCTL_CMD_GET_STATUS2:
-            read = (*gplev0)>>21 & 1;
-            return read;
+            read2 = (*gplev0)>>21 & 1;
+            return read2;
             break;
     }
     return 0;

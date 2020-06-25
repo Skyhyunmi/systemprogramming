@@ -11,7 +11,6 @@
 #include <sys/sysmacros.h>
 #include "socket.h"
 #include "lcd.h"
-#include "spi.h"
 
 #define PIR_MAJOR_NUMBER 505
 #define PIR_MINOR_NUMBER 100
@@ -28,21 +27,17 @@
 void sig_handler(int signo);
 
 int keep=1;
-extern int rec,sock;
+extern int rec1,rec2,sock;
+
 int main(int argc, char *argv[]){
     dev_t pir_dev;
-    int fd1,cnt,fire=11;
+    char message[128];
+    int fd1,cnt,fire=0;
     long pir1, pir2;
-    char message[20];
     int rc = lcdInit(0x27);
-    int spi = spi_init();
 
     signal(SIGINT, (void *)sig_handler);
 	if (rc){
-		printf("Initialization failed; aborting...\n");
-		return 0;
-	}
-    if (spi){
 		printf("Initialization failed; aborting...\n");
 		return 0;
 	}
@@ -61,37 +56,45 @@ int main(int argc, char *argv[]){
     while(keep){
         sleep(1);
         cnt++;
-        pir1 = ioctl(fd1, IOCTL_CMD_GET_STATUS, NULL);
-        pir2 = ioctl(fd1, IOCTL_CMD_GET_STATUS2, NULL);
 
-        if(pir1 || pir2 /*|| !rec */) {  // pir1, pir2에서 사람 감지하거나, 화재발생하지 않았을 경우 cnt=0을 고정 
-                                          // 추후에 pir1, pir2가 모두 사람을 감지해야 cnt를 초기화 하게 할 수도 있음. 센서오류 방지
-            if(cnt >=10) {
-                lcdSetCursor(1,4);  
-                lcdWriteString("                    ");
-            }
-            cnt = 0;
+        if(rec1==11) {
+            fire=1;
+            cnt=0;
+            lcdSetCursor(1,4);  
+            lcdWriteString("      Time : 0   ");
+        }
+        else if(cnt >3 && rec1==10 ) {
+            fire=0;
         }
                 // rec은 실제 센서에서 받아 오는 값(21 21 21 20), fire는 테스트용 임의의 센서 값 (11)
 
-        sprintf(message,"Received : %d %d  ",rec,data_from(rec));
-        lcdSetCursor(4,1);  
-        lcdWriteString(message);
-
-        sprintf(message,"PIR1 : %ld  PIR2 : %ld",pir1, pir2);
-        lcdSetCursor(2,2);  
-        lcdWriteString(message);
         
-        sprintf(message,"Signal : %d",((cnt >=10) && data_from(rec)==1)?11:10);
-        lcdSetCursor(6,3);  
+        sprintf(message,"  Signal from 1: %d  ",fire);
+        lcdSetCursor(1,1);  
         lcdWriteString(message);
 
-        sprintf(message,"Time : %d",cnt);
+        pir1 = ioctl(fd1, IOCTL_CMD_GET_STATUS, NULL);
+        pir2 = ioctl(fd1, IOCTL_CMD_GET_STATUS2, NULL);
+        int res=20;
+        if(fire){
+            if(pir1 || pir2) res=21;
+            else res=22;
+        }
+        else res=20;
+        sprintf(message," PIR1 : %ld  PIR2 : %ld      ",pir1, pir2);
+
+        lcdSetCursor(1,2);  
+        lcdWriteString(message);
+
+
+        sprintf(message,"     Signal : %d",res%10);
+        lcdSetCursor(1,3);  
+        lcdWriteString(message);
+        sprintf(message,"%d",res);
+        my_write(message);
+
+        sprintf(message,"      Time : %d",cnt);
         lcdSetCursor(1,4);  
-        lcdWriteString(message);
-
-        sprintf(message,"%.2fV",(float)analog_read(0)/1024);
-        lcdSetCursor(12,4);  
         lcdWriteString(message);
         
         // fflush(stdout);
