@@ -181,20 +181,21 @@ static void WriteCommand(char ucCMD)
 {
 	char uc;
 	uc = (ucCMD & 0xf0) | iBackLight; // most significant nibble sent first
-	lcd_write(&uc,1);
-	usleep(PULSE_PERIOD); // manually pulse the clock line
+
 	uc |= LCD_EN; // go high
 	lcd_write(&uc,1);
 	usleep(PULSE_PERIOD);
+
 	uc &= ~LCD_EN; // go low
 	lcd_write(&uc,1);
 	usleep(CMD_PERIOD);
+
 	uc = iBackLight | (ucCMD << 4); // least significant nibble
-	lcd_write(&uc,1);
-	usleep(PULSE_PERIOD);
+
 	uc |= LCD_EN; // enable pulse
 	lcd_write(&uc,1);
 	usleep(PULSE_PERIOD);
+
 	uc &= ~LCD_EN; // toggle pulse
 	lcd_write(&uc,1);
 	usleep(CMD_PERIOD);
@@ -221,35 +222,31 @@ int lcdWriteString(char *text)
 {
 	char ucTemp;
 	int i=0;
-	// printf("lcd : %s\n",text);
 	if (fd < 0 || text == NULL)
 		return 1;
 	int len = strlen(text);
 	while (i<len && *text)
 	{
 		ucTemp = iBackLight | DATA | (*text & 0xf0);
-		lcd_write(&ucTemp,1);
-		// write(fd, ucTemp, 1);
-		usleep(PULSE_PERIOD);
+
 		ucTemp |= LCD_EN; // pulse E
 		lcd_write(&ucTemp,1);
-		// write(fd, ucTemp, 1);
 		usleep(PULSE_PERIOD);
+
 		ucTemp &= ~LCD_EN;
 		lcd_write(&ucTemp,1);
-		// write(fd, ucTemp, 1);
 		usleep(PULSE_PERIOD);
+
 		ucTemp = iBackLight | DATA | (*text << 4);
-		lcd_write(&ucTemp,1);
-		// write(fd, ucTemp, 1);
+
 		ucTemp |= LCD_EN; // pulse E
 		lcd_write(&ucTemp,1);
-		// write(fd, ucTemp, 1);
 		usleep(PULSE_PERIOD);
+
 		ucTemp &= ~LCD_EN;
 		lcd_write(&ucTemp,1);
-		// write(fd, ucTemp, 1);
 		usleep(CMD_PERIOD);
+
 		text++;
 		i++;
 	}
