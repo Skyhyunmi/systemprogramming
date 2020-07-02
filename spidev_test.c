@@ -102,7 +102,7 @@ int main(){
 
 	while(1){
         sleep(1);
-        printf("%d\n",analog_read(0));
+        printf("%d\n",analog_read(channel));
 	}
 }
 
