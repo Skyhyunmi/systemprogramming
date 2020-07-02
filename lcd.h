@@ -280,6 +280,10 @@ int lcdInit(int iAddr)
 	ioctl(fd,IOCTL_I2C_SET_SLAVE_ADDRESS,&iAddr);
 	
 	iBackLight = LCD_BACKLIGHT;
+	WriteCommand(0x03);
+	WriteCommand(0x03);
+	WriteCommand(0x03);
+	WriteCommand(0x02);
 	WriteCommand(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE);
 	WriteCommand(LCD_DISPLAYCONTROL | LCD_DISPLAYON);
 	WriteCommand(LCD_ENTRYMODESET | LCD_ENTRYLEFT);
